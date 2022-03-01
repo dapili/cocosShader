@@ -1,0 +1,95 @@
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        noiseTex: { value : white }
+        u_brightness : { value : [0.95,0.19,0.,1.], editor: { type: "color" } }
+        u_middle : { value : [0.99,0.65,0.,1.], editor: { type: "color" } }
+        u_dark : { value : [0.98,0.91,0.07,1.], editor: { type: "color" } }
+}%
+
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+
+  #if USE_TEXTURE
+  in vec2 a_uv0;
+  out vec2 v_uv0;
+  #endif
+
+  void main () {
+    vec4 pos = vec4(a_position, 1);
+
+    #if CC_USE_MODEL
+    pos = cc_matViewProj * cc_matWorld * pos;
+    #else
+    pos = cc_matViewProj * pos;
+    #endif
+
+    #if USE_TEXTURE
+    v_uv0 = a_uv0;
+    #endif
+
+    gl_Position = pos;
+  }
+}%
+
+
+CCProgram fs %{
+  precision highp float;
+
+  #include <alpha-test>
+  #include <texture>
+  #include <cc-global>
+
+
+  #if USE_TEXTURE
+  varying mediump vec2 v_uv0;
+  uniform sampler2D texture;
+  #endif
+
+  uniform sampler2D noiseTex;
+  uniform Constants1 {
+    vec4 u_brightness;
+    vec4 u_middle;
+    vec4 u_dark;
+    float u_time;
+  };
+
+  varying lowp vec4 v_wp;
+
+  void main () {    
+    vec2 uv = v_uv0;
+    uv.y += cc_time.x * .6;
+    uv.y -= floor(uv.y);
+    vec3 color = vec3(0.);
+
+    float n = texture2D( noiseTex, uv ).x;
+
+    float p1 = smoothstep( 0., .7, v_uv0.y );
+    float p2 = smoothstep( 0., .7, v_uv0.y - .25 );
+    float p3 = smoothstep( 0., .7, v_uv0.y - .4 );
+
+    float f1 = step( n, p1 );
+    float f2 = step( n, p2 );
+    float f3 = step( n, p3 );
+    float r1 = f1 - f2;
+    float r2 = f2 - f3;
+    float r3 = f3;
+
+    color = (u_dark*r3 + u_middle*r2 + u_brightness*r1).rgb;
+    gl_FragColor = vec4( color, f1 );
+  }
+}%

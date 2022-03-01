@@ -1,0 +1,119 @@
+// Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.  
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        texture: { value: white }
+        alphaThreshold: { value: 0.5 }
+        canvas_size: { value: [ 667.0, 375.0 ] }
+        center: { value: [ 0.5, 0.5 ] }
+        u_time: { value: 0. }
+}%
+
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  out vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 a_uv0;
+  out vec2 v_uv0;
+  #endif
+
+  void main () {
+    vec4 pos = vec4(a_position, 1);
+
+    #if CC_USE_MODEL
+    pos = cc_matViewProj * cc_matWorld * pos;
+    #else
+    pos = cc_matViewProj * pos;
+    #endif
+
+    #if USE_TEXTURE
+    v_uv0 = a_uv0;
+    #endif
+
+    v_color = a_color;
+
+    gl_Position = pos;
+  }
+}%
+
+
+CCProgram fs %{
+  precision highp float;
+  
+  #include <alpha-test>
+  #include <texture>
+  #include <cc-global>
+
+  in vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 v_uv0;
+  uniform sampler2D texture;
+  #endif
+
+  uniform ARGS{
+    vec2 center;
+    vec2 canvas_size;
+    float u_time;
+  };
+
+  void main () {
+    vec2 uv = v_uv0;
+
+    // 圆心
+    vec2 p = center;
+
+    // // 求到圆心距离
+    vec2 off = p - uv;
+    off.x *= canvas_size.x / canvas_size.y;
+    float dis = length(off);
+    // // 圆半径
+    float r = .02;
+    r += u_time * .6;
+    // // 圆圈线宽
+    float width = .005;
+    // // 圆圈线边缘过渡区宽度
+    float border = .01;
+
+    // 边缘的宽度要随着圆半径变大而变宽 *30 是因为半径本身的值太小了，乘30倍吧
+    border *= r * 30.5;
+
+    // // 画圆
+    float circle = smoothstep(r+width+border,r+width,dis) - smoothstep(r,r-border,dis);
+    // float circle = smoothstep(r+width+border,r+width,dis);
+    // float circle = smoothstep(r,r-border,dis);
+
+    // 强度小一点
+    circle *= .4;
+
+    // 圆运动的最大边界
+    circle *= max(0.3 - dis,0.);
+    
+    // uv-p 两点相减得到uv到圆心的方向向量，用向量*强度得到最终偏移，强度就是前面画的白圈的值
+	uv = uv + (uv - p) * circle;
+
+    vec4 tex = texture2D(texture,uv);
+    // 图片正常颜色上，加上圆圈的值，圆圈的值取值范围是0-1 色彩的rgb也是0-1，加起来就是0-2 ，rgb全都>=1时显示白色， 
+    // 这里加一下只是单纯的为了看看圆圈形状哈，么有什么意义，后面用这个circle的值做uv偏移，就能看到图片的变形了。这里线用白色显示，方便观察动画轨迹
+    // tex.xyz += circle;
+    gl_FragColor = vec4(tex.xyz,tex.w);
+  }
+
+}%

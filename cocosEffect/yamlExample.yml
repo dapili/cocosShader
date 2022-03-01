@@ -1,0 +1,73 @@
+# YAML 是由 : 和空格分隔的键值组合。
+
+
+# 所有的引号和逗号都可以省略
+
+key1: 1
+key2: unquoted string
+
+# 注意：冒号后的空格不可省略
+
+
+# 行首的空格缩进数量代表数据的层级
+
+object1:
+  key1: false
+object2:
+  key2: 3.14
+  key3: 0xdeadbeef
+  nestedObject:
+    key4: 'quoted string'
+
+# 以连字符 + 空格开头，表示数组元素
+
+o1: 
+- 42
+- "double-quoted string"
+ 
+# 最终解析效果如下：
+# {o1: [42, "double-quoted string"]}
+
+
+# YAML 中可以通过 & 定锚点，* 来引用
+
+obj1: &o1
+  key1: value1
+obj2:
+  key2: value2
+  key3: *o1
+  
+# 最终解析出来效果如下：
+# {
+#     "obj1": {
+#         "key1": "value1"
+#     },
+#     "obj2": {
+#         "key2": "value2",
+#         "key3": {
+#             "key1": "value1"
+#         }
+#     }
+# }
+
+# << 表示追加，类似继承
+
+object11: &o1
+  key1: value1
+  key2: value2
+object21:
+  <<: *o1
+  key3: value3
+  
+# 最终解析效果如下：
+# {
+#     "object11": {
+#         "key1": "value1",
+#         "key2": "value2"
+#     },
+#     "object21": {
+#         "key1": "value1",
+#         "key2": "value2",
+#         "key3": "value3"
+#     }
+# }

@@ -1,0 +1,28 @@
+CCEffect %{
+  techniques:
+  - name: opaque
+    passes:
+    - vert: unlit-vs:vert #此处的 vert 对应 CCProgram 的 vert，指向渲染平台的入口函数。例如：WebGL 就是 main 函数。
+      frag: unlit-fs:frag
+}%
+
+CCProgram unlit-vs %{
+  precision highp float;
+  in vec4 a_position;
+  in vec4 a_color;
+  out vec4 v_color;
+
+  vec4 vert () {
+    v_color = a_color;
+    return a_position;
+  }
+}%
+
+CCProgram unlit-fs %{
+  precision highp float;
+  in vec4 v_color;
+
+  vec4 frag () {
+    return v_color;
+  }
+}%

@@ -1,0 +1,22 @@
+{
+  "__type__": "cc.Material",
+  "_name": "customShader",
+  "_objFlags": 0,
+  "_native": "",
+  "_effectAsset": {
+    "__uuid__": "6dd0d8ee-089c-4e0e-9286-a4cec3fa2d94"
+  },
+  "_techniqueIndex": 0,
+  "_techniqueData": {
+    "0": {
+      "props": {
+        "u_resolution": {
+          "__type__": "cc.Vec2",
+          "x": 270,
+          "y": 270
+        }
+      },
+      "defines": {}
+    }
+  }
+}

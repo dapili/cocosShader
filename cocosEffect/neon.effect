@@ -1,0 +1,191 @@
+// Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.  
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        texture: { value: white }
+        alphaThreshold: { value: 0.5 }
+        colorLeft: {  value: [1.,1.,1.,1.],editor: { type: "color"}}
+        colorRight: { value: [1.,1.,1.,1.],editor: { type: "color"}}
+        color1: { value: [1.,1.,1.,1.],editor: { type: "color"}}
+        color2: { value: [1.,1.,1.,1.],editor: { type: "color"}}
+        color3: { value: [1.,1.,1.,1.],editor: { type: "color"}}
+        canvas_size: { value: [ 1.0, 1.0 ] }
+        u_time: { value: 0.0}
+}%
+
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  out vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 a_uv0;
+  out vec2 v_uv0;
+  #endif
+
+  void main () {
+    vec4 pos = vec4(a_position, 1);
+
+    #if CC_USE_MODEL
+    pos = cc_matViewProj * cc_matWorld * pos;
+    #else
+    pos = cc_matViewProj * pos;
+    #endif
+
+    #if USE_TEXTURE
+    v_uv0 = a_uv0;
+    #endif
+
+    v_color = a_color;
+
+    gl_Position = pos;
+  }
+}%
+
+
+CCProgram fs %{
+  precision highp float;
+  
+  #include <alpha-test>
+  #include <texture>
+  #include <cc-global>
+
+  in vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 v_uv0;
+  uniform sampler2D texture;
+  #endif
+
+  uniform trans {
+      vec4 colorLeft;
+      vec4 colorRight;
+      vec4 color1;
+      vec4 color2;
+      vec4 color3;
+      vec2 canvas_size;
+      float u_time;
+  };
+
+  float drawGird(vec2 p) {
+    if(p.x > 0. && p.x < 0.01){
+      return 1.;
+    }
+    if(p.x > 0.99 && p.x < 1.){
+      return 1.;
+    }
+    if(p.y > 0. && p.y < 0.01){
+      return 1.;
+    }
+    if(p.y > 0.99 && p.y < 1.){
+      return 1.;
+    }
+    return 0.;
+  }
+
+  float hashOld12(vec2 p) {
+	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+  }
+
+  float  drawLayer(float scale,vec2 uv) {
+    // 注释设 scale为10的情况
+    // 输出值
+    float co = 0.;
+
+    // 拷贝一份uv用，不修改原uv
+    vec2 uv1 = uv;
+
+    // uv值范围从 0-1变为 0-scale scale值为10就是0-10范围
+    uv1 *= scale;
+
+    vec2 hvtemp = floor(uv1);
+    float n = hashOld12(vec2(hvtemp.y));
+    uv1.x += n;
+
+    // floor向下取整，计算出格子所在下标，
+    // 10*10的格子，如果uv是 0.2345,0.2345,uv1就是2.345,2.345
+    // 取整后 即为该uv所在格子下表，2,2
+    // 0.2 <= uv < 0.3 该范围内所有uv坐标，处理后hv均为 2,2
+    vec2 hv = floor(uv1);
+
+    // fr是 fract对数字取小数部分， 0.2345,0.2345 -> uv1 2.345,2.345 -> 0.345,0.345    
+    // 如 0.2 <= uv < 0.3 处理后就是一个范围 0-1的范围
+    vec2 fr = fract(uv1);
+    if (canvas_size.x > canvas_size.y) {
+        fr.x *= canvas_size.x / canvas_size.y;
+    }
+    else if (canvas_size.y > canvas_size.x) {
+        fr.y *= canvas_size.y / canvas_size.x;
+    }
+
+    float circle = distance(fr, vec2(0.5));
+
+    float radius = hashOld12(hv);
+    float strength = radius;
+    radius = radius * 0.3 + 0.1;
+
+    // 半径*10取整，对2取余，舍弃一半的圆
+    float f1 = mod(floor(radius * 10.),2.);
+    radius *= f1;
+
+    // circle = step(radius, circle);
+    circle = smoothstep(radius - .02 * scale,radius,circle);
+
+    circle = 1. - circle;
+    strength *= 1. / scale * 9.;
+    circle *= strength;
+
+    co += circle;
+    // co += drawGird(fr);
+
+    return co;
+  }
+
+  void main () {
+    vec2 uv = vec2(v_uv0.x,v_uv0.y);
+    vec3 co = vec3(0.);
+    // 加个背景色
+    co += mix(colorLeft,colorRight,uv.y).xyz;
+    
+    vec4 carr[3];
+    carr[0] = color1;
+    carr[1] = color2;
+    carr[2] = color3;
+    
+    for(int i = 0;i < 3;i++ ){
+      float idx = float(i);
+      // 用循环下表做一个递增的层半径
+      float p1 = idx * 5. + 3.;
+
+      // 给每一层做一个随机运动方向 也就是一个速度向量
+      vec2 uvoff = vec2(hashOld12(vec2(p1)),hashOld12(vec2(p1 * 10.0)));
+      // 速度*时间 = 偏移距离 让该层随时间运动 可以注释掉 *u_time 就不会运动了
+      // uvoff = uvoff *u_time * .1;
+      uvoff = -uvoff *cc_time.x * .1;
+      
+      vec2 p2 = vec2(uv.x,uv.y) + uvoff;
+
+      // p1 半径， p2 供计算的uv值
+      float layer = drawLayer(p1,p2);
+      
+      co += layer * carr[i].xyz;
+    }
+    
+    gl_FragColor = vec4(co,1.);
+  }
+}%

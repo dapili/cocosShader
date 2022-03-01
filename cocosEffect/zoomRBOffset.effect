@@ -1,0 +1,103 @@
+// Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.  
+// 放大并红蓝通道偏移  
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        texture: { value: white }
+        alphaThreshold: { value: 0.5 }
+        u_resolution: { value: [100, 100] }
+}%
+
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  out vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 a_uv0;
+  out vec2 v_uv0;
+  #endif
+
+  void main () {
+    vec4 pos = vec4(a_position, 1);
+
+    #if CC_USE_MODEL
+    pos = cc_matViewProj * cc_matWorld * pos;
+    #else
+    pos = cc_matViewProj * pos;
+    #endif
+
+    #if USE_TEXTURE
+    v_uv0 = a_uv0;
+    #endif
+
+    v_color = a_color;
+
+    gl_Position = pos;
+  }
+}%
+
+
+CCProgram fs %{
+  precision highp float;
+  
+  #include <alpha-test>
+  #include <texture>
+  #include <cc-global>
+
+  in vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 v_uv0;
+  uniform sampler2D texture;
+  #endif
+
+  uniform Properties{
+    vec2 u_resolution;
+  };
+
+  void main () {
+    vec4 o = vec4(1, 1, 1, 1);
+
+    #if USE_TEXTURE
+      CCTexture(texture, v_uv0, o);
+    #endif
+
+    o *= v_color;
+
+    ALPHA_TEST(o);
+
+    float duration = 0.7;
+    float maxScale = 1.1;
+    float offset = 0.02;
+    
+    float progress = mod(cc_time.x, duration) / duration; // 0~1
+    vec2 offsetCoords = vec2(offset, offset) * progress;
+    float scale = 1.0 + (maxScale - 1.0) * progress;
+    
+    vec2 ScaleTextureCoords = vec2(0.5, 0.5) + (v_uv0 - vec2(0.5, 0.5)) / scale;
+    
+    vec4 maskR = texture2D(texture, ScaleTextureCoords + offsetCoords);
+    vec4 maskB = texture2D(texture, ScaleTextureCoords - offsetCoords);
+    vec4 mask = texture2D(texture, ScaleTextureCoords);
+    
+    gl_FragColor = vec4(maskR.r, mask.g, maskB.b, mask.a);
+
+  }
+
+}%

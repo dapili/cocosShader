@@ -1,0 +1,80 @@
+// Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.  
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        u_dissolveMap: { value: white, editor: { tooltip: '噪声贴图' } }
+        dissolveThreshold: { value: 0.5, editor: { range:[0, 1, 0.01], slide: true, tooltip: '溶解阈值' } } # 此处定义的参数都必须指向 CCProgram 处对应声明的 uniform
+}%
+
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  in vec2 a_uv0;
+
+  out vec4 v_color;
+  out vec2 v_uv0;
+
+  void main () {
+    v_uv0 = a_uv0;
+    v_color = a_color;
+    gl_Position = cc_matViewProj* vec4(a_position, 1);
+  }
+}%
+
+
+CCProgram fs %{
+  precision highp float;
+  
+  #include <texture>
+
+  in vec4 v_color;
+
+  uniform sampler2D texture;
+
+  uniform Properties{
+    float dissolveThreshold;
+  };
+
+  #if USE_TEXTURE
+    in vec2 v_uv0;
+    uniform sampler2D u_dissolveMap;
+  #endif
+
+  void main () {
+    vec4 o = vec4(1, 1, 1, 1);
+    float value = 1.0;
+
+    #if USE_TEXTURE
+      vec4 dissolveMap = texture2D(u_dissolveMap, v_uv0);
+      value *= dissolveMap.r;
+    #endif
+
+    if (value < dissolveThreshold) {
+      discard;
+    }
+
+    #if USE_TEXTURE
+      o *= texture2D(texture, v_uv0);
+    #endif
+
+    if (value < dissolveThreshold + 0.05) {
+      o = vec4(0.9, 0.6, 0.3, o.a);
+    }
+
+    gl_FragColor = o;
+  }
+}%

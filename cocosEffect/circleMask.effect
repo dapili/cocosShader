@@ -1,0 +1,76 @@
+// Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.  
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        size: { value: [0, 0]}
+        center: { value: [0.5,0.5], editor: { tooltip: '中心点'}}
+        r: { value: 0.5, editor: { tooltip: '半径'}}
+        smooths: { value: 0.01, editor: { tooltip: '平滑度'}}
+}%
+
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  in vec2 a_uv0;
+
+  out vec4 v_color;
+  out vec2 v_uv0;
+
+  void main () {
+    v_uv0 = a_uv0;
+    v_color = a_color;
+    gl_Position = cc_matViewProj* vec4(a_position, 1);
+  }
+}%
+
+
+CCProgram fs %{
+  precision highp float;
+  
+  #include <texture>
+
+  in vec4 v_color;
+  in vec2 v_uv0;
+
+  uniform sampler2D texture;
+
+  uniform Properties{
+    vec2 size;
+    vec2 center;
+    float r;
+    float smooths;
+  };
+
+  void main () {
+    vec4 o = vec4(1, 1, 1, 1);
+    vec2 off = v_uv0 - center;
+    if (size.x > size.y) {
+      off.x *= size.x / size.y;
+    }
+    else if (size.y > size.x) {
+      off.y *= size.y / size.x;
+    }
+    float dis = length(off);
+    float n = smoothstep(r-smooths,r,dis);
+    o.w = 1. - n;
+
+    CCTexture(texture, v_uv0, o);
+    o *= v_color;
+
+    gl_FragColor = o;
+  }
+}%

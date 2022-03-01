@@ -1,0 +1,102 @@
+// Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.  
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        texture: { value: white }
+        alphaThreshold: { value: 0.5 }
+        u_resolution: { value: [100, 100] }
+}%
+
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  out vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 a_uv0;
+  out vec2 v_uv0;
+  #endif
+
+  void main () {
+    vec4 pos = vec4(a_position, 1);
+
+    #if CC_USE_MODEL
+    pos = cc_matViewProj * cc_matWorld * pos;
+    #else
+    pos = cc_matViewProj * pos;
+    #endif
+
+    #if USE_TEXTURE
+    v_uv0 = a_uv0;
+    #endif
+
+    v_color = a_color;
+
+    gl_Position = pos;
+  }
+}%
+
+
+CCProgram fs %{
+  precision highp float;
+  
+  #include <alpha-test>
+  #include <texture>
+  #include <cc-global>
+
+  in vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 v_uv0;
+  uniform sampler2D texture;
+  #endif
+
+  uniform Properties {
+    vec2 u_resolution;
+  };
+
+  void mainImage( out vec4 fragColor) {
+    vec2 uv = v_uv0.xy;
+    vec2 rs = u_resolution.xy;
+	  vec2 q = 0.6 * (2.0*uv*rs-rs)/min(u_resolution.y,u_resolution.x);
+
+    float time = cc_time.x;
+    float a = atan( q.x, q.y );
+    float r = length( q );
+    float leaves = 3.0;
+    float s = 0.50001 + 0.5*sin( leaves*a + time );
+    float g = sin( 1.57+leaves*a+time );
+    float d = 0.15 + 0.3*sqrt(s) + 0.15*g*g;
+    float h = clamp( r/d, 0.0, 1.0 );
+    float f = 1.0-smoothstep( 0.95, 1.0, h );
+    
+    h *= 1.0-0.5*(1.0-h)*smoothstep( 0.95+0.05*h, 1.0, sin(leaves*a+time) );
+	
+	  vec3 bcol = vec3(0.9+0.1*q.y, 1.0, 0.9-0.1*q.y);
+	  bcol *= 1.0 - 0.5*r;
+    vec3 col = mix( bcol, 1.2*vec3(0.65*h, 0.25+0.5*h, 0.0), f );
+
+    fragColor = vec4( col, 1.0 );
+    
+  }
+
+  void main () {
+    mainImage(gl_FragColor);
+  }
+
+}%
